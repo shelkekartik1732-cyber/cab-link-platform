@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      // Fetch driver record
+      // Fetch driver record from DB if available
       const { data: driverData, error: driverErr } = await supabase
         .from('drivers')
         .select('*')
@@ -98,16 +98,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } else {
-        // DB table missing or record not found — restore from user-keyed localStorage cache
+        // DB table missing or record not found — check cloud Supabase user_metadata for cross-browser sync
+        const meta = authUser.user_metadata || {};
         const savedDriver = localStorage.getItem(userDriverKey) || localStorage.getItem(DEMO_DRIVER_KEY);
         const savedBusiness = localStorage.getItem(userBizKey) || localStorage.getItem(DEMO_BUSINESS_KEY);
-        if (savedDriver) {
-          setDriverProfile(JSON.parse(savedDriver));
+
+        let driverObj: Driver | null = savedDriver ? JSON.parse(savedDriver) : null;
+        let bizObj: Business | null = savedBusiness ? JSON.parse(savedBusiness) : null;
+
+        if (meta.driver_name || meta.full_name || meta.mobile || meta.onboarding_completed !== undefined) {
+          driverObj = {
+            id: driverObj?.id || `driver-${authUser.id}`,
+            auth_user_id: authUser.id,
+            business_id: meta.business_name ? `biz-${authUser.id}` : (driverObj?.business_id || null),
+            driver_name: meta.driver_name || meta.full_name || driverObj?.driver_name || '',
+            phone_number: meta.phone_number || meta.mobile || driverObj?.phone_number || '',
+            whatsapp_number: meta.whatsapp_number || meta.mobile || driverObj?.whatsapp_number || '',
+            onboarding_completed: meta.onboarding_completed !== undefined ? Boolean(meta.onboarding_completed) : Boolean(driverObj?.onboarding_completed)
+          };
+
+          if (meta.business_name) {
+            bizObj = {
+              id: bizObj?.id || `biz-${authUser.id}`,
+              business_name: meta.business_name || bizObj?.business_name || '',
+              city: meta.city || bizObj?.city || '',
+              booking_contact_name: meta.booking_contact_name || bizObj?.booking_contact_name || null,
+              booking_contact_phone: meta.booking_contact_phone || bizObj?.booking_contact_phone || null
+            };
+          }
+        }
+
+        if (driverObj) {
+          setDriverProfile(driverObj);
+          localStorage.setItem(userDriverKey, JSON.stringify(driverObj));
         } else {
           setDriverProfile(null);
         }
-        if (savedBusiness) {
-          setBusiness(JSON.parse(savedBusiness));
+
+        if (bizObj) {
+          setBusiness(bizObj);
+          localStorage.setItem(userBizKey, JSON.stringify(bizObj));
         } else {
           setBusiness(null);
         }
@@ -378,6 +408,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       whatsapp_number: data.whatsapp_number
     };
 
+    if (isConfigured) {
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            driver_name: data.driver_name,
+            phone_number: data.phone_number,
+            whatsapp_number: data.whatsapp_number,
+            onboarding_step: 2
+          }
+        });
+      } catch (err) {
+        console.warn('Notice updating user metadata:', err);
+      }
+    }
+
     if (!isConfigured) {
       localStorage.setItem(userDriverKey, JSON.stringify(updatedLocalDriver));
       localStorage.setItem(DEMO_DRIVER_KEY, JSON.stringify(updatedLocalDriver));
@@ -432,6 +477,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       booking_contact_name: data.booking_contact_name || null,
       booking_contact_phone: data.booking_contact_phone || null
     };
+
+    if (isConfigured) {
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            business_name: data.business_name,
+            city: data.city,
+            booking_contact_name: data.booking_contact_name || null,
+            booking_contact_phone: data.booking_contact_phone || null,
+            onboarding_completed: true,
+            onboarding_step: 3
+          }
+        });
+      } catch (err) {
+        console.warn('Notice updating user metadata:', err);
+      }
+    }
 
     if (!isConfigured) {
       localStorage.setItem(userBizKey, JSON.stringify(fallbackBiz));

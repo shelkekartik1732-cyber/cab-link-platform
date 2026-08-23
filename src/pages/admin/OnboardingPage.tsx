@@ -34,23 +34,32 @@ export const OnboardingPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Prefill existing user data if available
+  // Prefill existing user data and auto-resume onboarding step
   useEffect(() => {
-    if (driverProfile) {
-      setDriverName(driverProfile.driver_name || user?.user_metadata?.full_name || '');
-      setPhoneNumber(driverProfile.phone_number || user?.user_metadata?.mobile || '');
-      setWhatsappNumber(driverProfile.whatsapp_number || driverProfile.phone_number || user?.user_metadata?.mobile || '');
-    } else if (user) {
-      setDriverName(user.user_metadata?.full_name || '');
-      setPhoneNumber(user.user_metadata?.mobile || '');
-      setWhatsappNumber(user.user_metadata?.mobile || '');
-    }
+    const meta = user?.user_metadata || {};
+    const dName = driverProfile?.driver_name || meta.driver_name || meta.full_name || '';
+    const dPhone = driverProfile?.phone_number || meta.phone_number || meta.mobile || '';
+    const dWhatsapp = driverProfile?.whatsapp_number || meta.whatsapp_number || dPhone;
+
+    setDriverName(dName);
+    setPhoneNumber(dPhone);
+    setWhatsappNumber(dWhatsapp);
 
     if (business) {
-      setBusinessName(business.business_name || '');
-      setCity(business.city || '');
-      setContactName(business.booking_contact_name || '');
-      setContactPhone(business.booking_contact_phone || '');
+      setBusinessName(business.business_name || meta.business_name || '');
+      setCity(business.city || meta.city || '');
+      setContactName(business.booking_contact_name || meta.booking_contact_name || '');
+      setContactPhone(business.booking_contact_phone || meta.booking_contact_phone || '');
+    } else if (meta.business_name) {
+      setBusinessName(meta.business_name || '');
+      setCity(meta.city || '');
+      setContactName(meta.booking_contact_name || '');
+      setContactPhone(meta.booking_contact_phone || '');
+    }
+
+    // Auto-resume to Step 2 if Step 1 details are already filled and step 2 not finished
+    if ((dName && dPhone) || meta.onboarding_step === 2) {
+      setStep(2);
     }
   }, [user, driverProfile, business]);
 
