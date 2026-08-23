@@ -246,7 +246,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email);
+      const redirectUrl = `${window.location.origin}/reset-password`;
+      console.log('Sending password reset email to:', email, 'Redirect URL:', redirectUrl);
+
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: redirectUrl
+      });
 
       if (error) {
         console.error('Supabase resetPasswordForEmail error:', error);
@@ -270,8 +275,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token,
+        email: email.trim(),
+        token: token.trim(),
         type: 'recovery'
       });
 
