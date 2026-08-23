@@ -14,6 +14,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
+  verifyEmailOtp: (email: string, token: string) => Promise<{ error: Error | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   saveDriverProfile: (data: { driver_name: string; phone_number: string; whatsapp_number: string }) => Promise<{ driver: Driver | null; error: Error | null }>;
   saveBusinessDetails: (data: { business_name: string; city: string; booking_contact_name: string; booking_contact_phone: string }) => Promise<{ business: Business | null; error: Error | null }>;
@@ -242,9 +243,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error: null };
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+
+    return { error };
+  };
+
+  const verifyEmailOtp = async (email: string, token: string) => {
+    if (!isConfigured) {
+      return { error: null };
+    }
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'recovery'
     });
+
+    if (data?.session) {
+      setSession(data.session);
+      setUser(data.session.user);
+    }
 
     return { error };
   };
@@ -426,6 +444,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signOut,
         resetPassword,
+        verifyEmailOtp,
         updatePassword,
         saveDriverProfile,
         saveBusinessDetails,
