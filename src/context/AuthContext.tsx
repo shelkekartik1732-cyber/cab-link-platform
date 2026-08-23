@@ -246,20 +246,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Connection to Supabase timed out after 10s. Please verify your Supabase URL & Anon Key.')), 10000)
-      );
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email);
 
-      const apiPromise = supabase.auth.resetPasswordForEmail(email);
-
-      const result: any = await Promise.race([apiPromise, timeoutPromise]);
-
-      if (result?.error) {
-        console.error('Supabase resetPasswordForEmail error:', result.error);
-        return { error: result.error };
+      if (error) {
+        console.error('Supabase resetPasswordForEmail error:', error);
+        return { error };
       }
 
-      console.log('Supabase resetPasswordForEmail success:', result?.data);
+      console.log('Supabase resetPasswordForEmail success:', data);
       return { error: null };
     } catch (err: any) {
       console.error('Unexpected error calling resetPasswordForEmail:', err);
@@ -275,29 +269,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Connection to Supabase timed out after 10s. Please try again.')), 10000)
-      );
-
-      const apiPromise = supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
         type: 'recovery'
       });
 
-      const result: any = await Promise.race([apiPromise, timeoutPromise]);
-
-      if (result?.error) {
-        console.error('Supabase verifyOtp error:', result.error);
-        return { error: result.error };
+      if (error) {
+        console.error('Supabase verifyOtp error:', error);
+        return { error };
       }
 
-      if (result?.data?.session) {
-        setSession(result.data.session);
-        setUser(result.data.session.user);
+      if (data?.session) {
+        setSession(data.session);
+        setUser(data.session.user);
       }
 
-      console.log('Supabase verifyOtp success:', result?.data);
+      console.log('Supabase verifyOtp success:', data);
       return { error: null };
     } catch (err: any) {
       console.error('Unexpected error calling verifyOtp:', err);
@@ -313,22 +301,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Connection to Supabase timed out after 10s.')), 10000)
-      );
-
-      const apiPromise = supabase.auth.updateUser({
+      const { data, error } = await supabase.auth.updateUser({
         password: newPassword
       });
 
-      const result: any = await Promise.race([apiPromise, timeoutPromise]);
-
-      if (result?.error) {
-        console.error('Supabase updateUser password error:', result.error);
-        return { error: result.error };
+      if (error) {
+        console.error('Supabase updateUser password error:', error);
+        return { error };
       }
 
-      console.log('Supabase updateUser password success:', result?.data);
+      console.log('Supabase updateUser password success:', data);
       return { error: null };
     } catch (err: any) {
       console.error('Unexpected error calling updateUser:', err);
