@@ -240,43 +240,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string) => {
     if (!isConfigured) {
-      return { error: null };
+      return { 
+        error: new Error('Supabase environment variables (VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY) are missing in Vercel settings.') 
+      };
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email);
 
-    return { error };
+      if (error) {
+        console.error('Supabase resetPasswordForEmail error:', error);
+        return { error };
+      }
+
+      console.log('Supabase resetPasswordForEmail success:', data);
+      return { error: null };
+    } catch (err: any) {
+      console.error('Unexpected error calling resetPasswordForEmail:', err);
+      return { error: err };
+    }
   };
 
   const verifyEmailOtp = async (email: string, token: string) => {
     if (!isConfigured) {
+      return { 
+        error: new Error('Supabase environment variables (VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY) are missing in Vercel settings.') 
+      };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'recovery'
+      });
+
+      if (error) {
+        console.error('Supabase verifyOtp error:', error);
+        return { error };
+      }
+
+      if (data?.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+      }
+
+      console.log('Supabase verifyOtp success:', data);
       return { error: null };
+    } catch (err: any) {
+      console.error('Unexpected error calling verifyOtp:', err);
+      return { error: err };
     }
-
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'recovery'
-    });
-
-    if (data?.session) {
-      setSession(data.session);
-      setUser(data.session.user);
-    }
-
-    return { error };
   };
 
   const updatePassword = async (newPassword: string) => {
     if (!isConfigured) {
-      return { error: null };
+      return { 
+        error: new Error('Supabase environment variables (VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY) are missing in Vercel settings.') 
+      };
     }
 
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
 
-    return { error };
+      if (error) {
+        console.error('Supabase updateUser password error:', error);
+        return { error };
+      }
+
+      console.log('Supabase updateUser password success:', data);
+      return { error: null };
+    } catch (err: any) {
+      console.error('Unexpected error calling updateUser:', err);
+      return { error: err };
+    }
   };
 
   const signOut = async () => {
