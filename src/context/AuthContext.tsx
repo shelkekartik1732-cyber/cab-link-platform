@@ -37,16 +37,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Helper to fetch driver profile and business from Supabase or Mock
   const fetchDriverData = async (authUser: User) => {
+    const userDriverKey = `cab_link_driver_${authUser.id}`;
+    const userBizKey = `cab_link_business_${authUser.id}`;
+
     if (!isConfigured) {
       // Mock mode
-      const savedDriver = localStorage.getItem(DEMO_DRIVER_KEY);
-      const savedBusiness = localStorage.getItem(DEMO_BUSINESS_KEY);
+      const savedDriver = localStorage.getItem(userDriverKey) || localStorage.getItem(DEMO_DRIVER_KEY);
+      const savedBusiness = localStorage.getItem(userBizKey) || localStorage.getItem(DEMO_BUSINESS_KEY);
       
       let parsedDriver: Driver | null = savedDriver ? JSON.parse(savedDriver) : null;
       let parsedBusiness: Business | null = savedBusiness ? JSON.parse(savedBusiness) : null;
 
       if (!parsedDriver) {
-        // Create initial uncompleted driver record for mock
+        // Create initial driver record for mock
         parsedDriver = {
           id: 'demo-driver-id',
           auth_user_id: authUser.id,
@@ -56,6 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsapp_number: authUser.user_metadata?.mobile || '',
           onboarding_completed: false,
         };
+        localStorage.setItem(userDriverKey, JSON.stringify(parsedDriver));
         localStorage.setItem(DEMO_DRIVER_KEY, JSON.stringify(parsedDriver));
       }
 
@@ -77,6 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (driverData) {
+        // Cache to user-keyed localStorage so next login restores from cache
+        localStorage.setItem(userDriverKey, JSON.stringify(driverData));
         setDriverProfile(driverData as Driver);
 
         if (driverData.business_id) {
@@ -87,12 +93,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .maybeSingle();
 
           if (bizData) {
+            localStorage.setItem(userBizKey, JSON.stringify(bizData));
             setBusiness(bizData as Business);
           }
         }
       } else {
-        const savedDriver = localStorage.getItem(DEMO_DRIVER_KEY);
-        const savedBusiness = localStorage.getItem(DEMO_BUSINESS_KEY);
+        // DB table missing or record not found — restore from user-keyed localStorage cache
+        const savedDriver = localStorage.getItem(userDriverKey) || localStorage.getItem(DEMO_DRIVER_KEY);
+        const savedBusiness = localStorage.getItem(userBizKey) || localStorage.getItem(DEMO_BUSINESS_KEY);
         if (savedDriver) {
           setDriverProfile(JSON.parse(savedDriver));
         } else {
@@ -351,6 +359,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const saveDriverProfile = async (data: { driver_name: string; phone_number: string; whatsapp_number: string }) => {
     if (!user) return { driver: null, error: new Error('Not authenticated') };
 
+    const userDriverKey = `cab_link_driver_${user.id}`;
+
     const fallbackDriver: Driver = driverProfile || {
       id: `driver-${Date.now()}`,
       auth_user_id: user.id,
@@ -369,6 +379,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     if (!isConfigured) {
+      localStorage.setItem(userDriverKey, JSON.stringify(updatedLocalDriver));
       localStorage.setItem(DEMO_DRIVER_KEY, JSON.stringify(updatedLocalDriver));
       setDriverProfile(updatedLocalDriver);
       return { driver: updatedLocalDriver, error: null };
@@ -389,15 +400,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.warn('Supabase drivers table not ready, using fallback:', error.message);
+        localStorage.setItem(userDriverKey, JSON.stringify(updatedLocalDriver));
         localStorage.setItem(DEMO_DRIVER_KEY, JSON.stringify(updatedLocalDriver));
         setDriverProfile(updatedLocalDriver);
         return { driver: updatedLocalDriver, error: null };
       }
 
-      setDriverProfile(updated as Driver);
-      return { driver: updated as Driver, error: null };
+      const activeDriver = updated as Driver;
+      localStorage.setItem(userDriverKey, JSON.stringify(activeDriver));
+      setDriverProfile(activeDriver);
+      return { driver: activeDriver, error: null };
     } catch (err: any) {
       console.warn('Driver save exception fallback:', err);
+      localStorage.setItem(userDriverKey, JSON.stringify(updatedLocalDriver));
       localStorage.setItem(DEMO_DRIVER_KEY, JSON.stringify(updatedLocalDriver));
       setDriverProfile(updatedLocalDriver);
       return { driver: updatedLocalDriver, error: null };
@@ -406,6 +421,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveBusinessDetails = async (data: { business_name: string; city: string; booking_contact_name: string; booking_contact_phone: string }) => {
     if (!user) return { business: null, error: new Error('Not authenticated') };
+
+    const userDriverKey = `cab_link_driver_${user.id}`;
+    const userBizKey = `cab_link_business_${user.id}`;
 
     const fallbackBiz: Business = {
       id: business?.id || `biz-${Date.now()}`,
@@ -416,6 +434,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     if (!isConfigured) {
+      localStorage.setItem(userBizKey, JSON.stringify(fallbackBiz));
       localStorage.setItem(DEMO_BUSINESS_KEY, JSON.stringify(fallbackBiz));
       setBusiness(fallbackBiz);
 
@@ -425,6 +444,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           business_id: fallbackBiz.id,
           onboarding_completed: true
         };
+        localStorage.setItem(userDriverKey, JSON.stringify(updatedDriver));
         localStorage.setItem(DEMO_DRIVER_KEY, JSON.stringify(updatedDriver));
         setDriverProfile(updatedDriver);
       }
@@ -509,6 +529,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setDriverProfile(updatedDriver);
+      localStorage.setItem(userDriverKey, JSON.stringify(updatedDriver));
+      localStorage.setItem(userBizKey, JSON.stringify(activeBiz));
       localStorage.setItem(DEMO_DRIVER_KEY, JSON.stringify(updatedDriver));
       localStorage.setItem(DEMO_BUSINESS_KEY, JSON.stringify(activeBiz));
 
@@ -519,6 +541,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (driverProfile) {
         const updatedDriver: Driver = { ...driverProfile, business_id: fallbackBiz.id, onboarding_completed: true };
         setDriverProfile(updatedDriver);
+        localStorage.setItem(userDriverKey, JSON.stringify(updatedDriver));
+        localStorage.setItem(userBizKey, JSON.stringify(fallbackBiz));
       }
       return { business: fallbackBiz, error: null };
     }
