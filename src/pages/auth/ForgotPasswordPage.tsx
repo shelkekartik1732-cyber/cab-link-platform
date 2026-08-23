@@ -19,8 +19,8 @@ export const ForgotPasswordPage: React.FC = () => {
   const { resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
 
-  // Mode: 'email' | 'mobile'
-  const [resetMethod, setResetMethod] = useState<'email' | 'mobile'>('mobile');
+  // Mode: 'email' (default production method) | 'mobile'
+  const [resetMethod, setResetMethod] = useState<'email' | 'mobile'>('email');
 
   // Email state
   const [email, setEmail] = useState('');
@@ -31,7 +31,6 @@ export const ForgotPasswordPage: React.FC = () => {
   // Steps: 1: Enter Mobile, 2: Enter OTP, 3: Set New Password, 4: Success
   const [otpStep, setOtpStep] = useState<1 | 2 | 3 | 4>(1);
   const [mobileNumber, setMobileNumber] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [inputOtp, setInputOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -82,18 +81,17 @@ export const ForgotPasswordPage: React.FC = () => {
     try {
       if (isConfigured) {
         const fullPhone = cleanedMobile.length === 10 ? `+91${cleanedMobile}` : `+${cleanedMobile}`;
-        const { error } = await supabase.auth.signInWithOtp({
+        const { error: smsErr } = await supabase.auth.signInWithOtp({
           phone: fullPhone
         });
 
-        if (error) {
-          console.warn('Supabase SMS OTP fallback notice:', error.message);
+        if (smsErr) {
+          setErrorMessage(smsErr.message || 'Unable to send SMS OTP. Please try using Email Link instead.');
+          setOtpLoading(false);
+          return;
         }
       }
 
-      // Generate a 6-digit verification code
-      const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedOtp(randomCode);
       setOtpStep(2);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to send OTP to mobile.');
@@ -107,17 +105,36 @@ export const ForgotPasswordPage: React.FC = () => {
     e.preventDefault();
     setErrorMessage('');
 
+    const cleanedMobile = mobileNumber.replace(/\D/g, '');
     if (!inputOtp.trim() || inputOtp.trim().length < 6) {
-      setErrorMessage('Please enter the 6-digit OTP code.');
+      setErrorMessage('Please enter the 6-digit OTP code sent to your phone.');
       return;
     }
 
-    if (inputOtp.trim() !== generatedOtp && inputOtp.trim() !== '123456') {
-      setErrorMessage('Invalid OTP code. Please check the code and try again.');
-      return;
-    }
+    setOtpLoading(true);
 
-    setOtpStep(3);
+    try {
+      if (isConfigured) {
+        const fullPhone = cleanedMobile.length === 10 ? `+91${cleanedMobile}` : `+${cleanedMobile}`;
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          phone: fullPhone,
+          token: inputOtp.trim(),
+          type: 'sms'
+        });
+
+        if (verifyErr) {
+          setErrorMessage(verifyErr.message || 'Invalid or expired OTP code. Please check and try again.');
+          setOtpLoading(false);
+          return;
+        }
+      }
+
+      setOtpStep(3);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error verifying OTP code.');
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
   // 4. Mobile Step 3: Reset Password Handler
@@ -151,7 +168,7 @@ export const ForgotPasswordPage: React.FC = () => {
         setOtpStep(4);
         setTimeout(() => {
           navigate('/login');
-        }, 2500);
+        }, 2000);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'An error occurred updating password.');
@@ -172,7 +189,7 @@ export const ForgotPasswordPage: React.FC = () => {
           Reset Password
         </h1>
         <p className="mt-2 text-center text-sm text-slate-600 max-w-xs mx-auto">
-          Verify your account via Mobile OTP or Email link to set a new password.
+          Choose your preferred method to reset your account password.
         </p>
       </div>
 
@@ -182,22 +199,6 @@ export const ForgotPasswordPage: React.FC = () => {
           {/* Method Selection Tabs */}
           {otpStep < 4 && !emailSubmitted && (
             <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-100 rounded-2xl">
-              <button
-                type="button"
-                onClick={() => {
-                  setResetMethod('mobile');
-                  setErrorMessage('');
-                }}
-                className={`py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
-                  resetMethod === 'mobile'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>Mobile OTP</span>
-              </button>
-
               <button
                 type="button"
                 onClick={() => {
@@ -213,6 +214,22 @@ export const ForgotPasswordPage: React.FC = () => {
                 <Mail className="w-3.5 h-3.5" />
                 <span>Email Link</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setResetMethod('mobile');
+                  setErrorMessage('');
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                  resetMethod === 'mobile'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>Mobile OTP</span>
+              </button>
             </div>
           )}
 
@@ -223,7 +240,66 @@ export const ForgotPasswordPage: React.FC = () => {
             </div>
           )}
 
-          {/* METHOD 1: MOBILE OTP RESET */}
+          {/* METHOD 1: EMAIL LINK RESET (PRIMARY PRODUCTION METHOD) */}
+          {resetMethod === 'email' && (
+            <div>
+              {emailSubmitted ? (
+                <div className="text-center space-y-4 py-2">
+                  <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <h2 className="text-xl font-extrabold text-slate-900">Check Your Email</h2>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    We've sent a secure password reset link to <strong className="text-slate-900 font-semibold">{email}</strong>.
+                  </p>
+                  <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    Click the link in the email to set a new password. Check your spam folder if it doesn't appear in a few moments.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleEmailSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Registered Email Address *
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <Mail className="w-5 h-5" />
+                      </div>
+                      <input
+                        type="email"
+                        required
+                        placeholder="Enter email address"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm text-slate-900 font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={emailLoading}
+                    className="w-full bg-brand-600 hover:bg-brand-700 active:bg-brand-800 disabled:opacity-70 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-brand-600/30 transition-all mt-4"
+                  >
+                    {emailLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Sending Reset Link...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Send Reset Link</span>
+                        <ArrowRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* METHOD 2: MOBILE OTP RESET */}
           {resetMethod === 'mobile' && (
             <div>
               {/* OTP STEP 1: ENTER MOBILE NUMBER */}
@@ -247,7 +323,7 @@ export const ForgotPasswordPage: React.FC = () => {
                       />
                     </div>
                     <p className="mt-1.5 text-xs text-slate-500">
-                      We will send a 6-digit OTP code to verify your mobile number.
+                      A 6-digit verification SMS code will be sent to your phone.
                     </p>
                   </div>
 
@@ -275,21 +351,13 @@ export const ForgotPasswordPage: React.FC = () => {
               {otpStep === 2 && (
                 <form onSubmit={handleVerifyOtp} className="space-y-4 animate-fade-in">
                   <div className="p-3.5 bg-brand-50 border border-brand-200 rounded-2xl text-xs text-brand-900 space-y-1">
-                    <span className="font-bold block flex items-center gap-1.5 text-brand-800">
+                    <span className="font-bold flex items-center gap-1.5 text-brand-800">
                       <ShieldCheck className="w-4 h-4 text-brand-600" />
                       Verification Code Sent
                     </span>
                     <span>
-                      We sent a 6-digit verification code to <strong>+91 {mobileNumber.replace(/\D/g, '')}</strong>.
+                      Enter the 6-digit code sent to <strong>+91 {mobileNumber.replace(/\D/g, '')}</strong>.
                     </span>
-                    {generatedOtp && (
-                      <div className="pt-2 border-t border-brand-200/80 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-700">Verification OTP Code:</span>
-                        <span className="font-mono font-black text-sm text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-300">
-                          {generatedOtp}
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                   <div>
@@ -300,7 +368,7 @@ export const ForgotPasswordPage: React.FC = () => {
                       type="text"
                       required
                       maxLength={6}
-                      placeholder="e.g. 482915"
+                      placeholder="Enter 6-digit code"
                       value={inputOtp}
                       onChange={(e) => setInputOtp(e.target.value.replace(/\D/g, ''))}
                       className="w-full text-center tracking-[0.4em] font-mono text-xl py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-slate-900 font-bold"
@@ -317,11 +385,17 @@ export const ForgotPasswordPage: React.FC = () => {
                     </button>
                     <button
                       type="submit"
-                      disabled={inputOtp.length < 6}
+                      disabled={inputOtp.length < 6 || otpLoading}
                       className="flex-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-brand-600/25 transition-all"
                     >
-                      <span>Verify OTP</span>
-                      <ArrowRight className="w-4 h-4" />
+                      {otpLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <span>Verify OTP</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -332,7 +406,7 @@ export const ForgotPasswordPage: React.FC = () => {
                 <form onSubmit={handleResetPasswordWithOtp} className="space-y-4 animate-fade-in">
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Mobile number verified successfully! Enter your new password below.</span>
+                    <span>Mobile number verified! Enter your new password below.</span>
                   </div>
 
                   <div>
@@ -403,65 +477,9 @@ export const ForgotPasswordPage: React.FC = () => {
                   </div>
                   <h2 className="text-2xl font-extrabold text-slate-900">Password Reset Successful! ✓</h2>
                   <p className="text-sm text-slate-600">
-                    Your account password has been updated. Redirecting to sign in page...
+                    Your password has been updated. Redirecting to sign in page...
                   </p>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* METHOD 2: EMAIL LINK RESET */}
-          {resetMethod === 'email' && (
-            <div>
-              {emailSubmitted ? (
-                <div className="text-center space-y-4 py-2">
-                  <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-8 h-8" />
-                  </div>
-                  <h2 className="text-xl font-extrabold text-slate-900">Check your email</h2>
-                  <p className="text-sm text-slate-600">
-                    We've sent a password reset link to <strong className="text-slate-900 font-semibold">{email}</strong>.
-                  </p>
-                </div>
-              ) : (
-                <form onSubmit={handleEmailSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Registered Email Address *
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                        <Mail className="w-5 h-5" />
-                      </div>
-                      <input
-                        type="email"
-                        required
-                        placeholder="Enter email address"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm text-slate-900 font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={emailLoading}
-                    className="w-full bg-brand-600 hover:bg-brand-700 active:bg-brand-800 disabled:opacity-70 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-brand-600/30 transition-all mt-4"
-                  >
-                    {emailLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Sending Reset Link...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Send Reset Link</span>
-                        <ArrowRight className="w-5 h-5" />
-                      </>
-                    )}
-                  </button>
-                </form>
               )}
             </div>
           )}
