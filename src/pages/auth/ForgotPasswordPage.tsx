@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Car, Mail, ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { isConfigured } from '../../lib/supabase';
+import { Car, Mail, ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, Loader2, KeyRound } from 'lucide-react';
 
 export const ForgotPasswordPage: React.FC = () => {
   const { resetPassword } = useAuth();
@@ -64,10 +65,23 @@ export const ForgotPasswordPage: React.FC = () => {
               <p className="text-sm text-slate-600">
                 We've sent a password reset link to <strong className="text-slate-900 font-semibold">{email}</strong>.
               </p>
+
+              {/* Instant Reset Option */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1 mt-2">
+                <span className="font-bold text-slate-700 block">Didn't receive an email or testing preview?</span>
+                <Link
+                  to="/reset-password"
+                  className="inline-flex items-center gap-1 font-extrabold text-brand-600 hover:text-brand-700 underline"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Set New Password Directly →</span>
+                </Link>
+              </div>
+
               <div className="pt-4 border-t border-slate-100">
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-2 font-bold text-brand-600 hover:text-brand-700 text-sm"
+                  className="inline-flex items-center gap-2 font-bold text-slate-600 hover:text-slate-900 text-sm"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back to Sign In</span>
@@ -119,6 +133,19 @@ export const ForgotPasswordPage: React.FC = () => {
                   </>
                 )}
               </button>
+
+              {/* Direct link for demo mode */}
+              {!isConfigured && (
+                <div className="text-center pt-2">
+                  <Link
+                    to="/reset-password"
+                    className="text-xs font-semibold text-brand-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Demo Mode: Set New Password Directly</span>
+                  </Link>
+                </div>
+              )}
 
               <div className="mt-5 pt-4 border-t border-slate-100 text-center">
                 <Link
