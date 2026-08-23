@@ -22,7 +22,7 @@ import {
 
 const LOCAL_STORAGE_BOOKINGS_KEY = 'cab_link_demo_bookings';
 
-// Smart fallback demo booking so sample links (like /booking/8KX29PQ) always display full trip & cab details
+// Sample demo fallback ONLY for default token '8KX29PQ' or 'DEMO'
 const createDemoFallbackBooking = (token: string): Booking => {
   return {
     id: `demo-booking-${token}`,
@@ -97,6 +97,7 @@ export const CustomerBooking: React.FC = () => {
     }
 
     const uppercaseToken = bookingToken.toUpperCase();
+    const isSampleToken = uppercaseToken === '8KX29PQ' || uppercaseToken === 'DEMO';
 
     if (!isConfigured) {
       // Check local storage demo list
@@ -118,10 +119,12 @@ export const CustomerBooking: React.FC = () => {
             setPassengerCount(found.customer.passenger_count || 1);
           }
         }
+      } else if (isSampleToken) {
+        // Fallback to sample demo booking ONLY for sample token 8KX29PQ
+        setBooking(createDemoFallbackBooking(uppercaseToken));
       } else {
-        // Fallback to realistic demo booking for sample links
-        const demoFallback = createDemoFallbackBooking(uppercaseToken);
-        setBooking(demoFallback);
+        // Not found in local storage
+        setErrorType('not_found');
       }
       setLoading(false);
       return;
@@ -151,7 +154,7 @@ export const CustomerBooking: React.FC = () => {
         return;
       }
 
-      // 2. Fallback to direct query if RPC is not present
+      // 2. Fallback to direct query
       const { data, error: fetchErr } = await supabase
         .from('bookings')
         .select(`
@@ -164,9 +167,11 @@ export const CustomerBooking: React.FC = () => {
         .maybeSingle();
 
       if (fetchErr || !data) {
-        // If not found in live Supabase, use smart demo fallback for sample tokens
-        const fallback = createDemoFallbackBooking(uppercaseToken);
-        setBooking(fallback);
+        if (isSampleToken) {
+          setBooking(createDemoFallbackBooking(uppercaseToken));
+        } else {
+          setErrorType('not_found');
+        }
       } else if (data.status === 'cancelled') {
         setErrorType('cancelled');
       } else if (data.expires_at && new Date(data.expires_at) < new Date()) {
@@ -181,8 +186,11 @@ export const CustomerBooking: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching booking token:', err);
-      // Smart fallback so sample links always render details
-      setBooking(createDemoFallbackBooking(uppercaseToken));
+      if (isSampleToken) {
+        setBooking(createDemoFallbackBooking(uppercaseToken));
+      } else {
+        setErrorType('not_found');
+      }
     } finally {
       setLoading(false);
     }
@@ -351,6 +359,14 @@ export const CustomerBooking: React.FC = () => {
               <p className="text-sm text-slate-600 max-w-xs mx-auto">
                 This booking link is invalid or no longer available. Contact the driver for a new link.
               </p>
+              {!isConfigured && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 max-w-xs mx-auto text-left space-y-1">
+                  <span className="font-bold block">💡 Demo Mode Note:</span>
+                  <span>
+                    This booking link was created in browser local storage. To make your created booking links accessible across incognito tabs and external customer devices, add your <strong>VITE_SUPABASE_URL</strong> and <strong>VITE_SUPABASE_ANON_KEY</strong> in Vercel Environment Variables.
+                  </span>
+                </div>
+              )}
             </>
           )}
 
