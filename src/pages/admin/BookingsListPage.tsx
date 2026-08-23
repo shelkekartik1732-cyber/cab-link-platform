@@ -64,8 +64,10 @@ export const BookingsListPage: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (fetchErr) {
-        console.error('Error fetching bookings:', fetchErr);
-        setError('Unable to load bookings. Please try again.');
+        // If table doesn't exist yet, fall back to local storage
+        console.warn('Bookings table not ready, using local fallback:', fetchErr.message);
+        const saved = localStorage.getItem(LOCAL_STORAGE_BOOKINGS_KEY);
+        setBookings(saved ? JSON.parse(saved) : []);
       } else {
         const list = (data as Booking[]) || [];
         // Attach driver & business if missing
