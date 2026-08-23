@@ -82,12 +82,9 @@ ALTER TABLE public.booking_customers ENABLE ROW LEVEL SECURITY;
 -- ========================================================
 
 -- BUSINESSES POLICIES
-CREATE POLICY "Drivers can view their business"
+CREATE POLICY "Public and Drivers can view businesses"
     ON public.businesses FOR SELECT
-    USING (
-        id IN (SELECT business_id FROM public.drivers WHERE auth_user_id = auth.uid())
-        OR id IN (SELECT business_id FROM public.bookings)
-    );
+    USING (true);
 
 CREATE POLICY "Authenticated users can create business"
     ON public.businesses FOR INSERT
@@ -98,12 +95,9 @@ CREATE POLICY "Drivers can update their business"
     USING (id IN (SELECT business_id FROM public.drivers WHERE auth_user_id = auth.uid()));
 
 -- DRIVERS POLICIES
-CREATE POLICY "Drivers can view own or customer viewable driver profile"
+CREATE POLICY "Public and Drivers can view drivers"
     ON public.drivers FOR SELECT
-    USING (
-        auth_user_id = auth.uid()
-        OR id IN (SELECT driver_id FROM public.bookings)
-    );
+    USING (true);
 
 CREATE POLICY "Drivers can insert own driver profile"
     ON public.drivers FOR INSERT
@@ -114,12 +108,9 @@ CREATE POLICY "Drivers can update own driver profile"
     USING (auth_user_id = auth.uid());
 
 -- BOOKINGS POLICIES
-CREATE POLICY "Drivers can view own bookings"
+CREATE POLICY "Public and Drivers can view bookings"
     ON public.bookings FOR SELECT
-    USING (
-        driver_id IN (SELECT id FROM public.drivers WHERE auth_user_id = auth.uid())
-        OR booking_token IS NOT NULL -- Allow public read of bookings by token
-    );
+    USING (true);
 
 CREATE POLICY "Drivers can create bookings"
     ON public.bookings FOR INSERT
@@ -127,24 +118,17 @@ CREATE POLICY "Drivers can create bookings"
 
 CREATE POLICY "Drivers or Public can update booking status"
     ON public.bookings FOR UPDATE
-    USING (
-        driver_id IN (SELECT id FROM public.drivers WHERE auth_user_id = auth.uid())
-        OR true -- Public can update status when submitting details
-    );
+    USING (true)
+    WITH CHECK (true);
 
 CREATE POLICY "Drivers can delete own bookings"
     ON public.bookings FOR DELETE
     USING (driver_id IN (SELECT id FROM public.drivers WHERE auth_user_id = auth.uid()));
 
 -- BOOKING CUSTOMERS POLICIES
-CREATE POLICY "Drivers can view customers of their bookings"
+CREATE POLICY "Public and Drivers can view booking customers"
     ON public.booking_customers FOR SELECT
-    USING (
-        booking_id IN (
-            SELECT id FROM public.bookings 
-            WHERE driver_id IN (SELECT id FROM public.drivers WHERE auth_user_id = auth.uid())
-        )
-    );
+    USING (true);
 
 CREATE POLICY "Public or Driver can insert customer details"
     ON public.booking_customers FOR INSERT
@@ -155,7 +139,72 @@ CREATE POLICY "Public or Driver can update customer details"
     USING (true);
 
 -- ========================================================
--- ATOMIC ATOMIC CUSTOMER SUBMISSION RPC
+-- RPC 1: SECURE PUBLIC BOOKING FETCH BY TOKEN
+-- ========================================================
+CREATE OR REPLACE FUNCTION public.get_public_booking_by_token(p_token TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_result JSONB;
+BEGIN
+    SELECT jsonb_build_object(
+        'id', b.id,
+        'booking_token', b.booking_token,
+        'driver_id', b.driver_id,
+        'business_id', b.business_id,
+        'pickup_date', b.pickup_date,
+        'pickup_time', b.pickup_time,
+        'pickup_location', b.pickup_location,
+        'drop_location', b.drop_location,
+        'trip_type', b.trip_type,
+        'vehicle_type', b.vehicle_type,
+        'seating_capacity', b.seating_capacity,
+        'vehicle_number', b.vehicle_number,
+        'ride_type', b.ride_type,
+        'vehicle_details', b.vehicle_details,
+        'fare_amount', b.fare_amount,
+        'status', b.status,
+        'expires_at', b.expires_at,
+        'created_at', b.created_at,
+        'driver', jsonb_build_object(
+            'id', d.id,
+            'driver_name', d.driver_name,
+            'phone_number', d.phone_number,
+            'whatsapp_number', d.whatsapp_number
+        ),
+        'business', jsonb_build_object(
+            'id', biz.id,
+            'business_name', biz.business_name,
+            'city', biz.city,
+            'booking_contact_name', biz.booking_contact_name,
+            'booking_contact_phone', biz.booking_contact_phone
+        ),
+        'customer', (
+            SELECT jsonb_build_object(
+                'id', c.id,
+                'customer_name', c.customer_name,
+                'customer_mobile', c.customer_mobile,
+                'passenger_count', c.passenger_count
+            )
+            FROM public.booking_customers c
+            WHERE c.booking_id = b.id
+        )
+    ) INTO v_result
+    FROM public.bookings b
+    LEFT JOIN public.drivers d ON d.id = b.driver_id
+    LEFT JOIN public.businesses biz ON biz.id = b.business_id
+    WHERE UPPER(b.booking_token) = UPPER(p_token);
+
+    RETURN v_result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_public_booking_by_token(TEXT) TO anon, authenticated, service_role;
+
+-- ========================================================
+-- RPC 2: ATOMIC CUSTOMER SUBMISSION RPC
 -- ========================================================
 CREATE OR REPLACE FUNCTION public.submit_customer_booking_details(
     p_token TEXT,
@@ -174,7 +223,7 @@ BEGIN
     -- Find booking by token
     SELECT id INTO v_booking_id
     FROM public.bookings
-    WHERE booking_token = p_token;
+    WHERE UPPER(booking_token) = UPPER(p_token);
 
     IF v_booking_id IS NULL THEN
         RAISE EXCEPTION 'Booking not found';
@@ -203,3 +252,5 @@ BEGIN
     );
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.submit_customer_booking_details(TEXT, TEXT, TEXT, INT) TO anon, authenticated, service_role;
