@@ -13,6 +13,8 @@ interface AuthContextType {
   signUp: (email: string, password: string, driverName: string, phone: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   saveDriverProfile: (data: { driver_name: string; phone_number: string; whatsapp_number: string }) => Promise<{ driver: Driver | null; error: Error | null }>;
   saveBusinessDetails: (data: { business_name: string; city: string; booking_contact_name: string; booking_contact_phone: string }) => Promise<{ business: Business | null; error: Error | null }>;
   refreshProfile: () => Promise<void>;
@@ -235,6 +237,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: null };
   };
 
+  const resetPassword = async (email: string) => {
+    if (!isConfigured) {
+      return { error: null };
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`
+    });
+
+    return { error };
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    if (!isConfigured) {
+      return { error: null };
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    return { error };
+  };
+
   const signOut = async () => {
     if (!isConfigured) {
       localStorage.removeItem(DEMO_USER_KEY);
@@ -399,6 +425,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signIn,
         signOut,
+        resetPassword,
+        updatePassword,
         saveDriverProfile,
         saveBusinessDetails,
         refreshProfile

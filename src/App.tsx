@@ -10,6 +10,8 @@ import { CustomerBooking } from './pages/public/CustomerBooking';
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 
 // Admin Pages
 import { OnboardingPage } from './pages/admin/OnboardingPage';
@@ -73,6 +75,8 @@ export const App: React.FC = () => {
           {/* Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* First Time Driver Onboarding */}
           <Route
