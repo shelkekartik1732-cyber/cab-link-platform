@@ -12,8 +12,7 @@ import {
   CheckCircle2, 
   Loader2, 
   Lock, 
-  ShieldCheck,
-  KeyRound
+  ShieldCheck
 } from 'lucide-react';
 
 export const ForgotPasswordPage: React.FC = () => {
@@ -27,12 +26,6 @@ export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailSubmitted, setEmailSubmitted] = useState(false);
-
-  // Direct Inline Reset State
-  const [showInlineReset, setShowInlineReset] = useState(false);
-  const [inlinePassword, setInlinePassword] = useState('');
-  const [inlineConfirmPassword, setInlineConfirmPassword] = useState('');
-  const [inlineLoading, setInlineLoading] = useState(false);
 
   // Mobile OTP state
   // Steps: 1: Enter Mobile, 2: Enter OTP, 3: Set New Password, 4: Success
@@ -72,47 +65,7 @@ export const ForgotPasswordPage: React.FC = () => {
     }
   };
 
-  // 2. Direct Inline Reset Handler (for email fail-safe)
-  const handleInlineResetSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage('');
-
-    if (!inlinePassword || !inlineConfirmPassword) {
-      setErrorMessage('Please enter both password fields.');
-      return;
-    }
-
-    if (inlinePassword.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
-      return;
-    }
-
-    if (inlinePassword !== inlineConfirmPassword) {
-      setErrorMessage('Passwords do not match.');
-      return;
-    }
-
-    setInlineLoading(true);
-
-    try {
-      const { error } = await updatePassword(inlinePassword);
-
-      if (error && isConfigured) {
-        setErrorMessage(error.message || 'Failed to update password.');
-      } else {
-        setOtpStep(4);
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
-      }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'An error occurred updating password.');
-    } finally {
-      setInlineLoading(false);
-    }
-  };
-
-  // 3. Mobile Step 1: Send OTP Handler
+  // 2. Mobile Step 1: Send OTP Handler
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -133,7 +86,7 @@ export const ForgotPasswordPage: React.FC = () => {
         });
 
         if (smsErr) {
-          setErrorMessage(smsErr.message || 'Unable to send SMS OTP. Please try using Email Link instead.');
+          setErrorMessage(smsErr.message || 'Unable to send SMS OTP. Please use Email Link instead.');
           setOtpLoading(false);
           return;
         }
@@ -147,7 +100,7 @@ export const ForgotPasswordPage: React.FC = () => {
     }
   };
 
-  // 4. Mobile Step 2: Verify OTP Handler
+  // 3. Mobile Step 2: Verify OTP Handler
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -184,7 +137,7 @@ export const ForgotPasswordPage: React.FC = () => {
     }
   };
 
-  // 5. Mobile Step 3: Reset Password Handler
+  // 4. Mobile Step 3: Reset Password Handler
   const handleResetPasswordWithOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -236,7 +189,7 @@ export const ForgotPasswordPage: React.FC = () => {
           Reset Password
         </h1>
         <p className="mt-2 text-center text-sm text-slate-600 max-w-xs mx-auto">
-          Choose your preferred method to reset your account password.
+          Verify your account via Email link or Mobile OTP to set a new password.
         </p>
       </div>
 
@@ -287,7 +240,7 @@ export const ForgotPasswordPage: React.FC = () => {
             </div>
           )}
 
-          {/* METHOD 1: EMAIL LINK RESET (WITH FAIL-SAFE INLINE RESET) */}
+          {/* METHOD 1: EMAIL LINK RESET (PRODUCTION AUTHENTIC METHOD) */}
           {resetMethod === 'email' && (
             <div>
               {emailSubmitted ? (
@@ -295,91 +248,22 @@ export const ForgotPasswordPage: React.FC = () => {
                   <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
                     <CheckCircle2 className="w-8 h-8" />
                   </div>
-                  <h2 className="text-xl font-extrabold text-slate-900">Check Your Email</h2>
+                  <h2 className="text-2xl font-extrabold text-slate-900">Check Your Email</h2>
                   <p className="text-sm text-slate-600 leading-relaxed">
                     We've sent a password reset link to <strong className="text-slate-900 font-semibold">{email}</strong>.
                   </p>
-                  <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    Check your email inbox or spam folder for the link.
-                  </p>
-
-                  {/* Fail-safe Password Form if email is delayed */}
-                  {!showInlineReset ? (
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowInlineReset(true)}
-                        className="text-xs font-extrabold text-brand-600 hover:text-brand-700 hover:underline inline-flex items-center gap-1"
-                      >
-                        <KeyRound className="w-3.5 h-3.5" />
-                        <span>Didn't get the email? Set new password now →</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleInlineResetSubmit} className="space-y-4 text-left pt-2 border-t border-slate-100 animate-fade-in">
-                      <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        Set New Password
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                          New Password *
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                            <Lock className="w-5 h-5" />
-                          </div>
-                          <input
-                            type="password"
-                            required
-                            minLength={6}
-                            placeholder="Enter new password"
-                            value={inlinePassword}
-                            onChange={(e) => setInlinePassword(e.target.value)}
-                            className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 text-sm text-slate-900 font-medium"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                          Confirm New Password *
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                            <Lock className="w-5 h-5" />
-                          </div>
-                          <input
-                            type="password"
-                            required
-                            minLength={6}
-                            placeholder="Confirm new password"
-                            value={inlineConfirmPassword}
-                            onChange={(e) => setInlineConfirmPassword(e.target.value)}
-                            className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 text-sm text-slate-900 font-medium"
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={inlineLoading}
-                        className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-70 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-brand-600/30 transition-all"
-                      >
-                        {inlineLoading ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            <span>Updating Password...</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>Update Password & Sign In</span>
-                            <ArrowRight className="w-5 h-5" />
-                          </>
-                        )}
-                      </button>
-                    </form>
-                  )}
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 text-center leading-relaxed">
+                    Please click the link in your email to set a new password. Check your spam folder if it doesn't appear in a few moments.
+                  </div>
+                  <div className="pt-2">
+                    <Link
+                      to="/login"
+                      className="inline-flex items-center justify-center gap-2 w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl text-sm transition-all"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Back to Sign In</span>
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleEmailSubmit} className="space-y-4">
@@ -610,15 +494,17 @@ export const ForgotPasswordPage: React.FC = () => {
           )}
 
           {/* BACK TO LOGIN FOOTER */}
-          <div className="pt-4 border-t border-slate-100 text-center">
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1.5 font-bold text-xs text-slate-500 hover:text-slate-900"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Sign In</span>
-            </Link>
-          </div>
+          {!emailSubmitted && otpStep < 4 && (
+            <div className="pt-4 border-t border-slate-100 text-center">
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-1.5 font-bold text-xs text-slate-500 hover:text-slate-900"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Sign In</span>
+              </Link>
+            </div>
+          )}
 
         </div>
       </div>
