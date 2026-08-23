@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isConfigured } from '../../lib/supabase';
 import type { Booking, TripType, VehicleType, RideType } from '../../lib/types';
-import { generateBookingToken, formatCurrency, formatDate } from '../../lib/utils';
+import { generateBookingToken, formatCurrency, formatDate, encodeBookingToUrlParam } from '../../lib/utils';
 import { buildDriverShareWhatsAppUrl } from '../../lib/whatsapp';
 import { 
   Car, 
@@ -143,13 +143,15 @@ export const CreateBookingPage: React.FC = () => {
     }
   };
 
-  const getPublicUrl = (token: string) => {
-    return `${window.location.origin}/booking/${token}`;
+  const getPublicUrl = (bookingObj: Booking | null) => {
+    if (!bookingObj) return '';
+    const param = encodeBookingToUrlParam(bookingObj);
+    return `${window.location.origin}/booking/${bookingObj.booking_token}${param ? `?d=${param}` : ''}`;
   };
 
   const handleCopyLink = () => {
     if (!generatedBooking) return;
-    const url = getPublicUrl(generatedBooking.booking_token);
+    const url = getPublicUrl(generatedBooking);
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -157,7 +159,7 @@ export const CreateBookingPage: React.FC = () => {
 
   const handleShareWhatsApp = () => {
     if (!generatedBooking) return;
-    const url = getPublicUrl(generatedBooking.booking_token);
+    const url = getPublicUrl(generatedBooking);
     const waUrl = buildDriverShareWhatsAppUrl(
       url,
       generatedBooking.pickup_location,
@@ -250,7 +252,7 @@ export const CreateBookingPage: React.FC = () => {
               <input
                 type="text"
                 readOnly
-                value={getPublicUrl(generatedBooking.booking_token)}
+                value={getPublicUrl(generatedBooking)}
                 className="w-full bg-transparent font-mono text-xs font-semibold text-slate-800 focus:outline-none pl-2 truncate"
               />
             </div>

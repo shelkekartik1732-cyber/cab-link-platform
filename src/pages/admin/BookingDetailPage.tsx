@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase, isConfigured } from '../../lib/supabase';
 import type { Booking, BookingStatus } from '../../lib/types';
-import { formatCurrency, formatDate, formatPhoneNumber } from '../../lib/utils';
+import { formatCurrency, formatDate, formatPhoneNumber, encodeBookingToUrlParam } from '../../lib/utils';
 import { buildDriverShareWhatsAppUrl } from '../../lib/whatsapp';
 import { 
   Car, 
@@ -117,7 +117,8 @@ export const BookingDetailPage: React.FC = () => {
 
   const getPublicUrl = () => {
     if (!booking) return '';
-    return `${window.location.origin}/booking/${booking.booking_token}`;
+    const param = encodeBookingToUrlParam(booking);
+    return `${window.location.origin}/booking/${booking.booking_token}${param ? `?d=${param}` : ''}`;
   };
 
   const handleCopyLink = () => {

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isConfigured } from '../../lib/supabase';
 import type { Booking, BookingStatus } from '../../lib/types';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, encodeBookingToUrlParam } from '../../lib/utils';
 import { buildDriverShareWhatsAppUrl } from '../../lib/whatsapp';
 import { 
   Car, 
@@ -23,7 +23,7 @@ import {
 const LOCAL_STORAGE_BOOKINGS_KEY = 'cab_link_demo_bookings';
 
 export const BookingsListPage: React.FC = () => {
-  const { driverProfile } = useAuth();
+  const { driverProfile, business } = useAuth();
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,14 @@ export const BookingsListPage: React.FC = () => {
         console.error('Error fetching bookings:', fetchErr);
         setError('Unable to load bookings. Please try again.');
       } else {
-        setBookings((data as Booking[]) || []);
+        const list = (data as Booking[]) || [];
+        // Attach driver & business if missing
+        const enriched = list.map((b) => ({
+          ...b,
+          driver: b.driver || driverProfile,
+          business: b.business || business
+        }));
+        setBookings(enriched);
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
@@ -80,17 +87,27 @@ export const BookingsListPage: React.FC = () => {
     fetchBookings();
   }, [driverProfile?.id]);
 
-  const handleCopyLink = (token: string, e: React.MouseEvent) => {
+  const getPublicUrl = (b: Booking) => {
+    const enriched: Booking = {
+      ...b,
+      driver: b.driver || driverProfile,
+      business: b.business || business
+    };
+    const param = encodeBookingToUrlParam(enriched);
+    return `${window.location.origin}/booking/${b.booking_token}${param ? `?d=${param}` : ''}`;
+  };
+
+  const handleCopyLink = (booking: Booking, e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/booking/${token}`;
+    const url = getPublicUrl(booking);
     navigator.clipboard.writeText(url);
-    setCopiedToken(token);
+    setCopiedToken(booking.booking_token);
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
   const handleShareWhatsApp = (booking: Booking, e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/booking/${booking.booking_token}`;
+    const url = getPublicUrl(booking);
     const waUrl = buildDriverShareWhatsAppUrl(url, booking.pickup_location, booking.drop_location);
     window.open(waUrl, '_blank');
   };
@@ -359,7 +376,7 @@ export const BookingsListPage: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={(e) => handleCopyLink(b.booking_token, e)}
+                    onClick={(e) => handleCopyLink(b, e)}
                     className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold p-2.5 rounded-xl text-xs transition-colors"
                     title="Copy Customer Booking Link"
                   >
